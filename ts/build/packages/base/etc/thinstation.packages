@@ -78,7 +78,7 @@ order_command()
 		PASSWORD="'$PASSWORD'"
 	fi
 	if is_enabled $REVERSE_ORDER ; then
-		ORDERED_COMMAND="${SERVER_ARG}$SERVER $OPTIONS ${USER_ARG}$REMUSER {PASSWORD_ARG}$PASSWORD $MISC_OPTIONS"
+		ORDERED_COMMAND="${SERVER_ARG}$SERVER $OPTIONS ${USER_ARG}$REMUSER ${PASSWORD_ARG}$PASSWORD $MISC_OPTIONS"
 	else
 		ORDERED_COMMAND="$OPTIONS ${USER_ARG}$REMUSER ${PASSWORD_ARG}$PASSWORD $MISC_OPTIONS ${SERVER_ARG}$SERVER"
 	fi
@@ -158,6 +158,7 @@ console)
     x_mouse
     x_mod_map
     x_numlock
+    dconf_proxy_configure
     use_xrandr
     use_wallpaper
     while [ -e /tmp/.X11-unix/X$DISPLAY_NUMBER ] && [ "$reconnect" != "1" ]; do

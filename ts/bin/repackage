@@ -38,13 +38,16 @@ package_path()
 {
 	if [ "$temp_folder" != "" ] ; then
 		pkgpath="$temp_folder/$package"
+		return 0
 	else
 		pkgpath="$TSWRKNG/packages/$package"
 		for work in $TSWRKNG $XTRWRKNG; do
 			if [ -d "$work/packages/$package" ]; then
 				pkgpath="$work/packages/$package"
+				return 0
 			fi
 		done
+		return 1
 	fi
 }
 
@@ -78,7 +81,7 @@ extract_archive()
 			done
 		fi
 		if $install_port; then
-			prt-get install --install-scripts -fr -if -im $package
+			prt-get install --install-scripts -fr -if -im -is $package
 			archive="`find -L $ppath -type f -name ${name}#${version}-${release}.pkg.tar.\* -printf '%f'`"
 		fi
 	fi
@@ -177,11 +180,12 @@ remove_empty()
 
 clean()
 {
-	if [ -n "$PACKAGE" ] && [ -e ./packages/$PACKAGE ]; then
-		for object in `ls -A --color=never ./packages/$PACKAGE |grep -E -v 'build|.dna|.gitignore|dependencies'`; do
-			rm -rf ./packages/$PACKAGE/$object
+	package=$PACKAGE
+	if [ -n "$PACKAGE" ] && package_path; then
+		for object in `ls -A --color=never $pkgpath |grep -E -v 'build|.dna|.gitignore|dependencies'`; do
+			rm -rf $pkgpath/$object
 		done
-		rm -f ./packages/$PACKAGE/build/installed
+		rm -f $pkgpath/build/installed
 	else
 		echo "$PACKAGE does not exist"
 		exit 1
@@ -244,6 +248,48 @@ from_env()
 	touch $INSTALLDIR/build/installed
 }
 
+reduce_libs()
+{
+	if [ -e $pkgpath/lib ]; then
+		for link in `find $pkgpath/lib -mindepth 1 -maxdepth 1 -type l \
+		| grep -E 'lib\/lib' \
+		| grep -E '\.so' | sort -u`; do
+			# Normalize the link
+			linkdest=`readlink $link | sed -e 's,\.\./\.\./lib/,,' -e 's,^/lib/,,'`
+			linkdir=`dirname $link`
+			# If the link is to another directory, leave it alone
+			if [ `echo $linkdest | grep -E '/'` ]; then
+				continue
+			fi
+			soname=`objdump -p $linkdir/$linkdest | grep SONAME | awk '{print $2}'`
+			base=`basename $link`
+			if [ -z "$soname" ]; then
+				echo "MISSING SONAME $link"
+				exit 1
+			fi
+			if [ "$base" == "$soname" ]; then
+				rm $link
+				cp $linkdir/$linkdest $link
+			else
+				rm $link
+			fi
+		done
+		for lib in `find $pkgpath/lib -mindepth 1 -maxdepth 1 -type f \
+		| grep -E 'lib\/lib' \
+		| grep -E '\.so' |sort -u`; do
+			soname=`objdump -p $lib | grep SONAME | awk '{print $2}'`
+			base=`basename $lib`
+			if [ -z "$soname" ]; then
+				echo "MISSING SONAME $lib"
+				exit 1
+			fi
+			if [ "$base" != "$soname" ]; then
+				rm $lib
+			fi
+		done
+	fi
+}
+
 remove_libs()
 {
 	if [ -e $pkgpath/lib ]; then
@@ -262,6 +308,7 @@ main()
 	extra_files
 	remove_empty
 #	remove_libs
+	reduce_libs
 }
 
 get_opts $@
